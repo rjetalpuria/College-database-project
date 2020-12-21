@@ -6,6 +6,13 @@
 #include "sqlite3.h"
 using namespace std;
 
+//Class
+struct Database { //used to pass in database information within functions
+    sqlite3* db = nullptr;
+    string tableName;
+};
+
+//Function Declarations
 sqlite3* openDB(string uName);
 void add(sqlite3* db);
 void view(sqlite3* db);
@@ -16,12 +23,8 @@ int view_callback(void* unused, int numCols, char** data, char** colNames);
 int add_callback(void* db, int numCols, char** data, char** colNames);
 int remove_callback(void* db, int numCols, char** data, char** colNames);
 int update_callback(void* db, int numCols, char** data, char** colNames);
+void selectTable(Database* myDB, string operationStr);
 
-
-struct Database {
-    sqlite3* db = nullptr;
-    string table;
-};
 
 int main()
 {
@@ -59,6 +62,9 @@ int main()
         case 4:
             update(db);
             break;
+        default:
+            cout << "Invalid Input" << endl;
+            break;
         } //switch
     }//while
 }//main
@@ -86,93 +92,63 @@ sqlite3* openDB(string uName)
 
 void add(sqlite3* db)
 {
-    cout << "Initaiting process..." << endl;
-    cout << endl;
-    cout << "Tables:" << endl;
-    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
-    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
-    cout << endl;
-    cout << "Enter name of table to add to: ";
-    string table;
-    getline(cin, table);
-    cout << endl;
-
     Database myDB;
     myDB.db = db;
-    myDB.table = table;
+    myDB.tableName = "";
 
-    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
+    selectTable(&myDB, "to add to");
+
+    string sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + myDB.tableName + "';";
     sqlite3_exec(db, sql.c_str(), add_callback, &myDB, NULL);
     return;
 }
 
 void view(sqlite3* db) {
-    cout << "Initaiting process..." << endl;
-    cout << endl;
-    cout << "Tables:" << endl;
-    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
-    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
-    cout << endl;
-    cout << "Enter name of table to view: ";
-    string table;
-    getline(cin, table);
-    cout << endl;
-    while (table.back() == ' ')
-        table.pop_back();
-    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
+    Database myDB;
+    myDB.db = db;
+    myDB.tableName = "";
+
+    selectTable(&myDB, "to view");
+
+    while (myDB.tableName.back() == ' ')
+        myDB.tableName.pop_back();
+    
+    string sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + myDB.tableName + "';";
     sqlite3_exec(db, sql.c_str(), view_callback, NULL, NULL);
 
-    sql = "SELECT * FROM " + table;
+    sql = "SELECT * FROM " + myDB.tableName;
     sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
     cout << endl;
 }
 
 void remove(sqlite3* db)
 {
-    cout << "Initaiting process..." << endl;
-    cout << endl;
-    cout << "Tables:" << endl;
-    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
-    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
-    cout << endl;
-    cout << "Enter name of table to remove from: ";
-    string table;
-    getline(cin, table);
-    cout << endl;
-    //string sql = "DELETE FROM Courses WHERE Name =  '" + cName + "';";
-
     Database myDB;
     myDB.db = db;
-    myDB.table = table;
+    myDB.tableName = "";
+
+    selectTable(&myDB, "to remove from");
  
-    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
+    string sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + myDB.tableName + "';";
     sqlite3_exec(db, sql.c_str(), remove_callback, &myDB, NULL);
   
-    
     return;
 }
 
 void update(sqlite3* db)
 {
-    cout << "Initaiting process..." << endl;
-    cout << endl;
-    cout << "Tables:" << endl;
-    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
-    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
-    cout << endl;
-    cout << "Enter name of table to update: ";
-    string table;
-    getline(cin, table);
-    cout << endl;
-
-    //sql = "UPDATE table_name SET some_column = some_value WHERE some_column = some_value;"
-
     Database myDB;
     myDB.db = db;
-    myDB.table = table;
-    sql = "SELECT * FROM " + table;
+    myDB.tableName = "";
+
+    selectTable(&myDB, "to update");
+    
+    string sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + myDB.tableName + "';";
+    sqlite3_exec(db, sql.c_str(), view_callback, NULL, NULL);
+
+    sql = "SELECT * FROM " + myDB.tableName;
     sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
-    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
+    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + myDB.tableName + "';";
     sqlite3_exec(db, sql.c_str(), update_callback, &myDB, NULL);
 }
 
@@ -263,7 +239,7 @@ int add_callback(void* db, int numCols, char** data, char** colNames)
     colVal.push_back(')');
     
     Database myDB = *(Database*)db;
-    string sql = "INSERT INTO " + myDB.table + colName +  \
+    string sql = "INSERT INTO " + myDB.tableName + colName +  \
         " VALUES" + colVal + ";";
     sqlite3_exec(myDB.db, sql.c_str(), NULL, NULL, NULL);
     return 0;
@@ -292,7 +268,7 @@ int remove_callback(void* db, int numCols, char** data, char** colNames)
         value = temp;
     }
     Database myDB = *(Database*)db;
-    string sql = "DELETE FROM " + myDB.table + " WHERE " + name + "= " + value + ";";
+    string sql = "DELETE FROM " + myDB.tableName + " WHERE " + name + "= " + value + ";";
     sqlite3_exec(myDB.db, sql.c_str(), NULL, NULL, NULL);
 
     return 0;
@@ -307,32 +283,19 @@ int update_callback(void* db, int numCols, char** data, char** colNames)
     dataStr.push_back(',');
     string key, keyVal, keyType;
     stringstream(dataStr) >> key;
-    
+    stringstream(dataStr.substr(dataStr.find(key) + key.length() + 1)) >> keyType;
+    if (keyType.back() == ',')
+        keyType.pop_back();
+
     cout << "Enter name of column to update: ";
     string column, colType;
     cin >> column;
+    stringstream(dataStr.substr(dataStr.find(column) + column.length() + 1)) >> colType;
+    if (colType.back() == ',')
+        colType.pop_back();
 
-    while (!dataStr.empty()) {
-        string temp;
-        stringstream(dataStr) >> temp;
-
-        if (temp == key) {
-            dataStr = dataStr.substr(dataStr.find(key) + key.length()+1);
-            stringstream(dataStr) >> keyType;
-            if(keyType.back() == ',')
-                keyType.pop_back();
-        }
-
-        if (temp == column) {
-            dataStr = dataStr.substr(dataStr.find(column) + column.length() + 1);
-            stringstream(dataStr) >> colType;
-            colType.pop_back();
-        }
-
-        dataStr = dataStr.substr(dataStr.find(',') + 1);
-        
-    }
-    cout << "Enter a new value of type " << colType << ": ";
+ 
+    cout << "Enter a new value for " << column << " of type " << colType << ": ";
     string newVal;
     cin.ignore();
     getline(cin, newVal);
@@ -354,9 +317,24 @@ int update_callback(void* db, int numCols, char** data, char** colNames)
     }
 
     Database myDB = *(Database*)db;
-    string sql = "UPDATE " + myDB.table + " SET " + column + " = " + newVal + " WHERE " + key + " = " + keyVal + ";";
+    string sql = "UPDATE " + myDB.tableName + " SET " + column + " = " + newVal + " WHERE " + key + " = " + keyVal + ";";
     
     sqlite3_exec(myDB.db, sql.c_str(), NULL, NULL, NULL);
 
     return 0;
+}
+
+void selectTable(Database* myDB, string operationStr)
+{
+    cout << endl;
+    cout << "Tables:" << endl;
+    cout << "-------" << endl;
+    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
+    sqlite3_exec(myDB->db, sql.c_str(), print_callback, NULL, NULL);
+    cout << endl;
+    cout << "Enter name of table " << operationStr << ": ";
+    getline(cin, myDB->tableName);
+    cout << endl;
+   
+    return;
 }
