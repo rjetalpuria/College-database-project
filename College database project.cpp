@@ -10,10 +10,12 @@ sqlite3* openDB(string uName);
 void add(sqlite3* db);
 void view(sqlite3* db);
 void remove(sqlite3* db);
+void update(sqlite3* db);
 int print_callback(void* unused, int numCols, char** data, char** colNames);
 int view_callback(void* unused, int numCols, char** data, char** colNames);
 int add_callback(void* db, int numCols, char** data, char** colNames);
 int remove_callback(void* db, int numCols, char** data, char** colNames);
+int update_callback(void* db, int numCols, char** data, char** colNames);
 
 
 struct Database {
@@ -36,6 +38,7 @@ int main()
         cout << "1. Add to a table" << endl;
         cout << "2. View a table" << endl;
         cout << "3. Remove from a table" << endl;
+        cout << "4. Update info of table" << endl;
         cout << ">>> ";
         int input;
         cin >> input;
@@ -52,6 +55,9 @@ int main()
             break;
         case 3:
             remove(db);
+            break;
+        case 4:
+            update(db);
             break;
         } //switch
     }//while
@@ -94,9 +100,9 @@ void add(sqlite3* db)
     Database myDB;
     myDB.db = db;
     myDB.table = table;
+
     sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
     sqlite3_exec(db, sql.c_str(), add_callback, &myDB, NULL);
-
     return;
 }
 
@@ -138,11 +144,36 @@ void remove(sqlite3* db)
     Database myDB;
     myDB.db = db;
     myDB.table = table;
+ 
     sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
     sqlite3_exec(db, sql.c_str(), remove_callback, &myDB, NULL);
-    
+  
     
     return;
+}
+
+void update(sqlite3* db)
+{
+    cout << "Initaiting process..." << endl;
+    cout << endl;
+    cout << "Tables:" << endl;
+    string sql = "SELECT Name FROM sqlite_master WHERE TYPE = 'table';";
+    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
+    cout << endl;
+    cout << "Enter name of table to update: ";
+    string table;
+    getline(cin, table);
+    cout << endl;
+
+    //sql = "UPDATE table_name SET some_column = some_value WHERE some_column = some_value;"
+
+    Database myDB;
+    myDB.db = db;
+    myDB.table = table;
+    sql = "SELECT * FROM " + table;
+    sqlite3_exec(db, sql.c_str(), print_callback, NULL, NULL);
+    sql = "SELECT sql FROM sqlite_master WHERE TYPE = 'table' AND Name = '" + table + "';";
+    sqlite3_exec(db, sql.c_str(), update_callback, &myDB, NULL);
 }
 
 int print_callback(void* unused, int numCols, char** data, char** colNames)
@@ -262,6 +293,69 @@ int remove_callback(void* db, int numCols, char** data, char** colNames)
     }
     Database myDB = *(Database*)db;
     string sql = "DELETE FROM " + myDB.table + " WHERE " + name + "= " + value + ";";
+    sqlite3_exec(myDB.db, sql.c_str(), NULL, NULL, NULL);
+
+    return 0;
+}
+
+int update_callback(void* db, int numCols, char** data, char** colNames)
+{
+    string dataStr = *data;
+    dataStr = dataStr.substr(dataStr.find('(') + 1); // "Name TEXT, ID INTEGER)"
+    
+    dataStr.pop_back();
+    dataStr.push_back(',');
+    string key, keyVal, keyType;
+    stringstream(dataStr) >> key;
+    
+    cout << "Enter name of column to update: ";
+    string column, colType;
+    cin >> column;
+
+    while (!dataStr.empty()) {
+        string temp;
+        stringstream(dataStr) >> temp;
+
+        if (temp == key) {
+            dataStr = dataStr.substr(dataStr.find(key) + key.length()+1);
+            stringstream(dataStr) >> keyType;
+            if(keyType.back() == ',')
+                keyType.pop_back();
+        }
+
+        if (temp == column) {
+            dataStr = dataStr.substr(dataStr.find(column) + column.length() + 1);
+            stringstream(dataStr) >> colType;
+            colType.pop_back();
+        }
+
+        dataStr = dataStr.substr(dataStr.find(',') + 1);
+        
+    }
+    cout << "Enter a new value of type " << colType << ": ";
+    string newVal;
+    cin.ignore();
+    getline(cin, newVal);
+    cout << "Enter the " << key << " of the row to update: ";
+    getline(cin, keyVal);
+
+    if (colType == "TEXT") {
+        string temp = "'";
+        temp.append(newVal);
+        temp.push_back('\'');
+        newVal = temp;
+    }
+
+    if (keyType == "TEXT") {
+        string temp = "'";
+        temp.append(keyVal);
+        temp.push_back('\'');
+        keyVal = temp;
+    }
+
+    Database myDB = *(Database*)db;
+    string sql = "UPDATE " + myDB.table + " SET " + column + " = " + newVal + " WHERE " + key + " = " + keyVal + ";";
+    
     sqlite3_exec(myDB.db, sql.c_str(), NULL, NULL, NULL);
 
     return 0;
